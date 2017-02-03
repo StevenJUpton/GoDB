@@ -3,7 +3,7 @@
 package main
 
 import (
-	"container/list"
+	"bytes"
 	"io"
 	"net/http"
 	"os"
@@ -11,7 +11,7 @@ import (
 )
 
 //create global tables map
-var gtab = make(map[string]*list.List)
+var gtab = make(map[string][]string)
 
 //simple handler to accept basic commands
 func pingHandler(w http.ResponseWriter, r *http.Request) {
@@ -29,29 +29,32 @@ func createTable(w http.ResponseWriter, r *http.Request) {
 	//get tablename from querystring
 	ptableName := strings.Split(r.URL.RequestURI(), "?")
 	//create linked list to hold data
-	ptabData := list.New()
-	//add column headers
-	ptabData.PushFront("ID|NAME")
+	ptabData := []string{"ID|NAME"}
 	//add new table to global map
 	gtab[ptableName[1]] = ptabData
 
-	io.WriteString(w, ptableName[1])
-	io.WriteString(w, "ID|NAME")
+	io.WriteString(w, ptableName[1]+"\n")
+	io.WriteString(w, ptabData[0])
 
 }
 
 //insertdata handler
 func insertData(w http.ResponseWriter, r *http.Request) {
 	//get data to insert
-	pinsertData := strings.Split(r.URL.RequestURI(), "|")
+	pinsertData := strings.Split(r.URL.RequestURI(), "@")
 	//get tablename
 	ptableNameTemp := strings.Split(r.URL.RequestURI(), "?")
 	//get get rid of the actual data
-	ptableName := strings.Split(ptableNameTemp[1], "|")
+	ptableName := strings.Split(ptableNameTemp[1], "@")
 	//get table from global map
 	ptabData := gtab[ptableName[0]]
 	//add data to table
-	ptabData.PushBack(pinsertData)
+	ptabData = append(ptabData, pinsertData[1:]...)
+	//write back to global map
+	gtab[ptableName[0]] = ptabData
+
+	//output what was inserted
+	io.WriteString(w, pinsertData[1])
 
 }
 
@@ -61,13 +64,15 @@ func selectTable(w http.ResponseWriter, r *http.Request) {
 	io.WriteString(w, ptableName[1])
 	//return table to select from global map
 	ptabData := gtab[ptableName[1]]
-	presponse := ""
 
-	for e := ptabData.Front(); e != nil; e = e.Next() {
-		presponse += e.Value.(string)
+	var buffer bytes.Buffer
+
+	for _, e := range ptabData {
+		buffer.WriteString(e)
+		buffer.WriteString("\n")
 	}
 
-	io.WriteString(w, presponse)
+	io.WriteString(w, buffer.String())
 
 }
 
